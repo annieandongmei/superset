@@ -49,6 +49,7 @@ from superset.jinja_context import (
     to_datetime,
     WhereInMacro,
 )
+from unittest.mock import patch
 from superset.models.core import Database
 from superset.models.slice import Slice
 from superset.utils import json
@@ -1960,6 +1961,26 @@ def test_undefined_template_variable_not_function(mocker: MockerFixture) -> None
     template = "SELECT {{ undefined_variable.some_method() }}"
     with pytest.raises(UndefinedError):
         processor.process_template(template)
+
+
+def test_current_user_roles_logs_on_exception(mocker: MockerFixture) -> None:
+    """Test that current_user_roles logs when an exception occurs."""
+    mock_g = mocker.patch("superset.utils.core.g")
+    mock_get_user_roles = mocker.patch(
+        "superset.security_manager.get_user_roles", side_effect=Exception("Test error")
+    )
+    mock_logger = mocker.patch("superset.jinja_context.logger")
+    
+    mock_g.user.id = 1
+    cache = ExtraCache(table=mocker.MagicMock())
+    
+    result = cache.current_user_roles()
+    
+    # Should return None on error
+    assert result is None
+    # Should log the error
+    mock_logger.debug.assert_called_once()
+    assert "Failed to get current user roles" in mock_logger.debug.call_args[0][0]
 
 
 @pytest.mark.parametrize(

@@ -23,6 +23,8 @@ import celery
 from flask import Flask
 from flask_appbuilder import AppBuilder
 
+logger = logging.getLogger(__name__)
+
 # Temporary fix for missing flask_appbuilder.utils.legacy module
 try:
     from flask_appbuilder.utils.legacy import get_sqla_class
@@ -128,8 +130,14 @@ class UIManifestProcessor:
                 # templates
                 full_manifest = json.load(f)
                 self.manifest = full_manifest.get("entrypoints", {})
-        except Exception:  # pylint: disable=broad-except  # noqa: S110
-            pass
+        except FileNotFoundError:
+            # Expected before frontend build
+            logger.debug("Manifest file not found: %s", self.manifest_file)
+        except (json.JSONDecodeError, OSError) as ex:
+            # Malformed or unreadable manifest
+            logger.warning(
+                "Failed to parse manifest file %s: %s", self.manifest_file, ex
+            )
 
     def get_manifest_files(self, bundle: str, asset_type: str) -> list[str]:
         if self.app and self.app.debug:

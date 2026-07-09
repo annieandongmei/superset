@@ -210,7 +210,8 @@ class ExtraCache:
             if add_to_cache_keys:
                 self.cache_key_wrapper(json.dumps(user_roles))
             return user_roles
-        except Exception:  # pylint: disable=broad-except
+        except Exception as ex:  # pylint: disable=broad-except
+            logger.debug("Failed to get current user roles: %s", ex)
             return None
 
     def current_user_rls_rules(self) -> list[str] | None:
