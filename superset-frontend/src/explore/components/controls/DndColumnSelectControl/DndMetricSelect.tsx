@@ -28,6 +28,7 @@ import {
   QueryFormMetric,
 } from '@superset-ui/core';
 import { tn } from '@apache-superset/core/translation';
+import { logging } from '@apache-superset/core/utils';
 import { GenericDataType } from '@apache-superset/core/common';
 import { ColumnMeta } from '@superset-ui/chart-controls';
 import AdhocMetric, {
@@ -139,7 +140,9 @@ const DndMetricSelect = (props: any) => {
     if (datasource?.extra) {
       try {
         extra = JSON.parse(datasource.extra);
-      } catch {} // eslint-disable-line no-empty
+      } catch (error) {
+        logging.warn('Failed to parse datasource.extra', error);
+      }
     }
     return extra;
   }, [datasource?.extra]);
@@ -156,7 +159,9 @@ const DndMetricSelect = (props: any) => {
     if (datasource.extra) {
       try {
         parsedExtra = JSON.parse(datasource.extra as string);
-      } catch {} // eslint-disable-line no-empty
+      } catch (error) {
+        logging.warn('Failed to parse datasource.extra', error);
+      }
     }
     return {
       ...datasource,

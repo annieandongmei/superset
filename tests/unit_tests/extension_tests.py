@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import logging
 from os.path import dirname, join
 from unittest.mock import Mock
 
@@ -50,6 +51,38 @@ def test_get_manifest_no_prefix():
     assert manifest["js_manifest"]("styles") == ["/static/dist/styles-js.js"]
     assert manifest["css_manifest"]("styles") == []
     assert manifest["assets_prefix"] == ""
+
+
+def test_parse_manifest_json_missing_file_logs_debug(caplog, tmp_path):
+    """A missing manifest is expected before assets are built: log at debug."""
+    manifest_processor = UIManifestProcessor(str(tmp_path))
+
+    with caplog.at_level(logging.DEBUG, logger="superset.extensions"):
+        manifest_processor.parse_manifest_json()
+
+    assert manifest_processor.manifest == {}
+    assert any(
+        record.levelno == logging.DEBUG and "manifest not found" in record.getMessage()
+        for record in caplog.records
+    )
+
+
+def test_parse_manifest_json_malformed_logs_error(caplog, tmp_path):
+    """A malformed manifest is unexpected and must be surfaced, not swallowed."""
+    assets_dir = tmp_path / "static" / "assets"
+    assets_dir.mkdir(parents=True)
+    (assets_dir / "manifest.json").write_text("{ this is not valid json")
+
+    manifest_processor = UIManifestProcessor(str(tmp_path))
+
+    with caplog.at_level(logging.ERROR, logger="superset.extensions"):
+        manifest_processor.parse_manifest_json()
+
+    assert manifest_processor.manifest == {}
+    assert any(
+        record.levelno == logging.ERROR and "Failed to parse" in record.getMessage()
+        for record in caplog.records
+    )
 
 
 def test_spa_template_includes_css_bundles():

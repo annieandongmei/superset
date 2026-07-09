@@ -21,6 +21,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSelector } from 'react-redux';
 import { isDefined, ensureIsArray, DatasourceType } from '@superset-ui/core';
 import { t } from '@apache-superset/core/translation';
+import { logging } from '@apache-superset/core/utils';
 import type { editors } from '@apache-superset/core';
 import { styled } from '@apache-superset/core/theme';
 import Tabs from '@superset-ui/core/components/Tabs';
@@ -429,7 +430,9 @@ function AdhocMetricEditPopover({
   if (datasource?.extra && typeof datasource.extra === 'string') {
     try {
       extra = JSON.parse(datasource.extra) as ExtraConfig;
-    } catch {} // eslint-disable-line no-empty
+    } catch (error) {
+      logging.warn('Failed to parse datasource.extra', error);
+    }
   }
 
   return (

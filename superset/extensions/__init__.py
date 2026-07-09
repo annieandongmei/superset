@@ -52,6 +52,8 @@ from superset.utils.feature_flag_manager import FeatureFlagManager
 from superset.utils.machine_auth import MachineAuthProviderFactory
 from superset.utils.profiler import SupersetProfiler
 
+logger = logging.getLogger(__name__)
+
 # Apply MariaDB DDL fix early in the import chain
 try:
     apply_mariadb_ddl_fix()
@@ -128,8 +130,19 @@ class UIManifestProcessor:
                 # templates
                 full_manifest = json.load(f)
                 self.manifest = full_manifest.get("entrypoints", {})
-        except Exception:  # pylint: disable=broad-except  # noqa: S110
-            pass
+        except FileNotFoundError:
+            # The manifest is produced by the frontend build; it is expected to be
+            # missing until the assets are built (e.g. in dev before `npm run build`).
+            logger.debug(
+                "Frontend manifest not found at %s; assets may not be built yet",
+                self.manifest_file,
+            )
+        except (json.JSONDecodeError, OSError):
+            # A malformed or unreadable manifest is not expected and would leave the
+            # UI without its assets, so surface it instead of failing silently.
+            logger.exception(
+                "Failed to parse frontend manifest at %s", self.manifest_file
+            )
 
     def get_manifest_files(self, bundle: str, asset_type: str) -> list[str]:
         if self.app and self.app.debug:
