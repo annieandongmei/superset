@@ -161,6 +161,7 @@ class TestBaseImportDispatcherCommand:
 
     def test_args_and_kwargs_passed_to_version_command(self) -> None:
         """Test that args and kwargs are passed to the version command."""
+
         class MockCommandWithArgs(BaseCommand):
             def __init__(self, contents: dict[str, str], *args, **kwargs):
                 self.contents = contents
