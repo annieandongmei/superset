@@ -16,11 +16,12 @@
 # under the License.
 
 
+from unittest.mock import patch
+
 import pandas as pd
 import pytest
 from flask_babel import lazy_gettext as _
 from sqlalchemy.orm.session import Session
-from unittest.mock import patch
 
 from superset.charts.client_processing import apply_client_processing, pivot_df, table
 from superset.common.chart_data import ChartDataResultFormat
@@ -3066,7 +3067,7 @@ def test_table_d3_number_format_logs_on_failure() -> None:
             "col2": {"d3NumberFormat": ".2f"},  # Invalid for strings
         }
     }
-    
+
     with patch("superset.charts.client_processing.logger") as mock_logger:
         result = table(df, form_data)
         # col1 should be formatted, col2 should fail and log

@@ -23,8 +23,6 @@ import celery
 from flask import Flask
 from flask_appbuilder import AppBuilder
 
-logger = logging.getLogger(__name__)
-
 # Temporary fix for missing flask_appbuilder.utils.legacy module
 try:
     from flask_appbuilder.utils.legacy import get_sqla_class
@@ -53,6 +51,8 @@ from superset.utils.encrypt import EncryptedFieldFactory
 from superset.utils.feature_flag_manager import FeatureFlagManager
 from superset.utils.machine_auth import MachineAuthProviderFactory
 from superset.utils.profiler import SupersetProfiler
+
+logger = logging.getLogger(__name__)
 
 # Apply MariaDB DDL fix early in the import chain
 try:

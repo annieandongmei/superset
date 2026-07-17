@@ -15,12 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import json
-import logging
 from pathlib import Path
-from unittest.mock import patch, MagicMock
-
-import pytest
+from unittest.mock import patch
 
 from superset.extensions import UIManifestProcessor
 
@@ -34,7 +30,9 @@ class TestUIManifestProcessor:
             mock_logger.debug.assert_called_once()
             assert "not found" in mock_logger.debug.call_args[0][0]
 
-    def test_parse_manifest_json_malformed_json_logs_warning(self, tmp_path: Path) -> None:
+    def test_parse_manifest_json_malformed_json_logs_warning(
+        self, tmp_path: Path
+    ) -> None:
         """Test that malformed manifest file logs warning."""
         manifest_file = tmp_path / "static" / "assets" / "manifest.json"
         manifest_file.parent.mkdir(parents=True, exist_ok=True)
