@@ -16,6 +16,8 @@
 # under the License.
 
 
+from unittest.mock import patch
+
 import pandas as pd
 import pytest
 from flask_babel import lazy_gettext as _
@@ -3054,3 +3056,25 @@ def test_apply_client_processing_csv_format_partial_config_decimal_only():
     assert lines[0] == "name,value", f"Expected comma-separated header, got: {lines[0]}"
     assert "foo" in lines[1]
     assert "bar" in lines[2]
+
+
+def test_table_d3_number_format_logs_on_failure() -> None:
+    """Test that d3NumberFormat failures are logged with context."""
+    df = pd.DataFrame({"col1": [1, 2, 3], "col2": ["a", "b", "c"]})
+    form_data = {
+        "column_config": {
+            "col1": {"d3NumberFormat": ".2f"},
+            "col2": {"d3NumberFormat": ".2f"},  # Invalid for strings
+        }
+    }
+
+    with patch("superset.charts.client_processing.logger") as mock_logger:
+        result = table(df, form_data)
+        # col1 should be formatted, col2 should fail and log
+        assert mock_logger.debug.call_count >= 1
+        # Check that the log includes the format string and column name
+        debug_calls = [str(call) for call in mock_logger.debug.call_args_list]
+        assert any(".2f" in call for call in debug_calls)
+        assert any("col2" in call for call in debug_calls)
+        # DataFrame should still be returned (fallback behavior)
+        assert result is not None

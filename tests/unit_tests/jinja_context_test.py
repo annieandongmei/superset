@@ -19,6 +19,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Any
+from unittest.mock import patch
 
 import pytest
 from flask import current_app
@@ -1815,7 +1816,6 @@ def test_jinja2_template_syntax_error_handling(mocker: MockerFixture) -> None:
 
 def test_jinja2_undefined_error_handling(mocker: MockerFixture) -> None:
     """Test that UndefinedError is handled as client error"""
-    from unittest.mock import patch
 
     from jinja2.exceptions import UndefinedError
 
@@ -1848,7 +1848,6 @@ def test_jinja2_undefined_error_handling(mocker: MockerFixture) -> None:
 
 def test_jinja2_security_error_handling(mocker: MockerFixture) -> None:
     """Test that SecurityError is handled as client error"""
-    from unittest.mock import patch
 
     from jinja2.exceptions import SecurityError
 
@@ -1881,7 +1880,6 @@ def test_jinja2_security_error_handling(mocker: MockerFixture) -> None:
 
 def test_jinja2_server_error_handling(mocker: MockerFixture) -> None:
     """Test that server errors (like MemoryError) are handled with 500 status"""
-    from unittest.mock import patch
 
     from superset.exceptions import SupersetTemplateException
 
@@ -1960,6 +1958,26 @@ def test_undefined_template_variable_not_function(mocker: MockerFixture) -> None
     template = "SELECT {{ undefined_variable.some_method() }}"
     with pytest.raises(UndefinedError):
         processor.process_template(template)
+
+
+def test_current_user_roles_logs_on_exception(mocker: MockerFixture) -> None:
+    """Test that current_user_roles logs when an exception occurs."""
+    mock_g = mocker.patch("superset.utils.core.g")
+    mocker.patch(
+        "superset.security_manager.get_user_roles", side_effect=Exception("Test error")
+    )
+    mock_logger = mocker.patch("superset.jinja_context.logger")
+
+    mock_g.user.id = 1
+    cache = ExtraCache(table=mocker.MagicMock())
+
+    result = cache.current_user_roles()
+
+    # Should return None on error
+    assert result is None
+    # Should log the error
+    mock_logger.debug.assert_called_once()
+    assert "Failed to get current user roles" in mock_logger.debug.call_args[0][0]
 
 
 @pytest.mark.parametrize(
