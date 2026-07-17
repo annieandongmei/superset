@@ -16,17 +16,17 @@
 # under the License.
 
 import pytest
+from sqlalchemy import types as sqla_types
 from sqlalchemy.engine.url import make_url
 from sqlalchemy.orm.session import Session
-from sqlalchemy import types as sqla_types
 
+from superset.commands.database.exceptions import DatabaseInvalidError
 from superset.databases.utils import (
     get_col_type,
     get_foreign_keys_metadata,
     get_indexes_metadata,
     make_url_safe,
 )
-from superset.commands.database.exceptions import DatabaseInvalidError
 from superset.sql.parse import Table
 
 
@@ -88,15 +88,19 @@ def test_get_foreign_keys_metadata() -> None:
     """
     Test get_foreign_keys_metadata transforms constrained_columns to column_names
     """
-    database = type("MockDB", (), {
-        "get_foreign_keys": lambda self, table: [
-            {"constrained_columns": ["col1", "col2"], "name": "fk1"}
-        ]
-    })()
+    database = type(
+        "MockDB",
+        (),
+        {
+            "get_foreign_keys": lambda self, table: [
+                {"constrained_columns": ["col1", "col2"], "name": "fk1"}
+            ]
+        },
+    )()
     table = Table(schema="public", table="test")
-    
+
     result = get_foreign_keys_metadata(database, table)
-    
+
     assert len(result) == 1
     assert result[0]["column_names"] == ["col1", "col2"]
     assert result[0]["type"] == "fk"
@@ -107,15 +111,19 @@ def test_get_indexes_metadata() -> None:
     """
     Test get_indexes_metadata adds type field
     """
-    database = type("MockDB", (), {
-        "get_indexes": lambda self, table: [
-            {"name": "idx1", "column_names": ["col1"]}
-        ]
-    })()
+    database = type(
+        "MockDB",
+        (),
+        {
+            "get_indexes": lambda self, table: [
+                {"name": "idx1", "column_names": ["col1"]}
+            ]
+        },
+    )()
     table = Table(schema="public", table="test")
-    
+
     result = get_indexes_metadata(database, table)
-    
+
     assert len(result) == 1
     assert result[0]["type"] == "index"
     assert result[0]["name"] == "idx1"
