@@ -92,46 +92,14 @@ class ImportV1ThemeSchema(Schema):
                 sanitized_json_context.set(json.dumps(sanitized_config))
 
 
-class ThemePostSchema(Schema):
-    theme_name = fields.String(required=True, allow_none=False)
-    json_data = fields.String(required=True, allow_none=False)
+class BaseThemeSchema(Schema):
+    """Shared validation for theme create/update payloads.
 
-    @validates("theme_name")
-    def validate_theme_name(self, value: str, **kwargs: Any) -> None:
-        if not value or not value.strip():
-            raise ValidationError("Theme name cannot be empty.")
+    Both accept a ``theme_name`` and a ``json_data`` string, reject blank names,
+    parse/sanitize/validate the theme configuration, and write the sanitized
+    JSON back on load.
+    """
 
-    @validates("json_data")
-    def validate_and_sanitize_json_data(self, value: str, **kwargs: Any) -> None:
-        sanitized_json_context.set(None)
-        # Parse JSON
-        try:
-            theme_config = json.loads(value) if isinstance(value, str) else value
-        except (TypeError, json.JSONDecodeError) as ex:
-            raise ValidationError("Invalid JSON configuration") from ex
-
-        # Sanitize and validate the theme configuration
-        sanitized_config = _sanitize_and_validate_theme_config(theme_config)
-
-        # Update the field with sanitized content
-        # Note: This modifies the input data to ensure sanitized content is stored
-        if sanitized_config != theme_config:
-            # Re-serialize the sanitized config
-            sanitized_json_context.set(json.dumps(sanitized_config))
-
-    def _apply_sanitized_json_data(self, data: dict[str, Any]) -> dict[str, Any]:
-        data["json_data"] = _consume_sanitized_json_data(data["json_data"])
-        return data
-
-    @post_load
-    def apply_sanitized_json_data(
-        self, data: dict[str, Any], **kwargs: Any
-    ) -> dict[str, Any]:
-        del kwargs
-        return self._apply_sanitized_json_data(data)
-
-
-class ThemePutSchema(Schema):
     theme_name = fields.String(required=True, allow_none=False)
     json_data = fields.String(required=True, allow_none=False)
 
@@ -165,6 +133,14 @@ class ThemePutSchema(Schema):
         del kwargs
         data["json_data"] = _consume_sanitized_json_data(data["json_data"])
         return data
+
+
+class ThemePostSchema(BaseThemeSchema):
+    pass
+
+
+class ThemePutSchema(BaseThemeSchema):
+    pass
 
 
 openapi_spec_methods_override = {
