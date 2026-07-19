@@ -16,6 +16,8 @@
 # under the License.
 
 
+import logging
+
 import pandas as pd
 import pytest
 from flask_babel import lazy_gettext as _
@@ -1844,6 +1846,53 @@ def test_table():
 |  0 | 80,679,663 |
     """.strip()
     )
+
+
+def test_table_invalid_d3numberformat_logs_warning(caplog):
+    """
+    When `d3NumberFormat` cannot be applied to a column, `table` must keep its
+    previous behavior (return the column unformatted, no exception raised) while
+    emitting a warning with the column name and format string for diagnostics.
+    """
+    df = pd.DataFrame.from_dict({"count": {0: "not-a-number"}})
+    form_data = {
+        "viz_type": "table",
+        # ",d" cannot be applied to a string value and will raise on format()
+        "column_config": {"count": {"d3NumberFormat": ",d"}},
+    }
+
+    with caplog.at_level(logging.WARNING, logger="superset.charts.client_processing"):
+        result = table(df, form_data)
+
+    # behavior unchanged: the column is returned exactly as it came in
+    assert list(result["count"]) == ["not-a-number"]
+
+    warnings = [
+        record for record in caplog.records if record.levelno == logging.WARNING
+    ]
+    assert any(
+        "Could not apply d3NumberFormat" in record.getMessage()
+        and "count" in record.getMessage()
+        and ",d" in record.getMessage()
+        for record in warnings
+    )
+    # exc_info=True attaches the traceback for the diagnostic trail
+    assert warnings[0].exc_info is not None
+
+
+def test_table_valid_d3numberformat_does_not_warn(caplog):
+    """A valid d3NumberFormat formats the column and emits no warning."""
+    df = pd.DataFrame.from_dict({"count": {0: 80679663}})
+    form_data = {
+        "viz_type": "table",
+        "column_config": {"count": {"d3NumberFormat": ",d"}},
+    }
+
+    with caplog.at_level(logging.WARNING, logger="superset.charts.client_processing"):
+        result = table(df, form_data)
+
+    assert list(result["count"]) == ["80,679,663"]
+    assert caplog.records == []
 
 
 def test_apply_client_processing_no_form_invalid_viz_type():

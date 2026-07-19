@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import logging
 from os.path import dirname, join
 from unittest.mock import Mock
 
@@ -50,6 +51,65 @@ def test_get_manifest_no_prefix():
     assert manifest["js_manifest"]("styles") == ["/static/dist/styles-js.js"]
     assert manifest["css_manifest"]("styles") == []
     assert manifest["assets_prefix"] == ""
+
+
+def test_parse_manifest_json_missing_file_logs_debug(caplog):
+    """
+    A missing manifest file is expected (assets not built yet): it must not
+    raise, must leave the manifest untouched, and must emit a debug log.
+    """
+    processor = UIManifestProcessor("/nonexistent/app/dir")
+
+    with caplog.at_level(logging.DEBUG, logger="superset.extensions"):
+        processor.parse_manifest_json()
+
+    assert processor.manifest == {}
+    assert any(
+        "manifest file not found" in message.lower() for message in caplog.messages
+    )
+
+
+def test_parse_manifest_json_malformed_logs_exception(tmp_path, caplog):
+    """
+    A malformed manifest file is unexpected: it must still not raise, must
+    leave the manifest untouched, and must emit an exception log with a trace.
+    """
+    assets_dir = tmp_path / "static" / "assets"
+    assets_dir.mkdir(parents=True)
+    (assets_dir / "manifest.json").write_text("{ this is not valid json")
+
+    processor = UIManifestProcessor(str(tmp_path))
+
+    with caplog.at_level(logging.ERROR, logger="superset.extensions"):
+        processor.parse_manifest_json()
+
+    assert processor.manifest == {}
+    error_records = [
+        record for record in caplog.records if record.levelno >= logging.ERROR
+    ]
+    assert any(
+        "Failed to parse UI manifest file" in record.getMessage()
+        for record in error_records
+    )
+    # logger.exception attaches the active exception info for the trace
+    assert error_records[0].exc_info is not None
+
+
+def test_parse_manifest_json_valid_file_does_not_log(tmp_path, caplog):
+    """A valid manifest is loaded without emitting warning/error logs."""
+    assets_dir = tmp_path / "static" / "assets"
+    assets_dir.mkdir(parents=True)
+    (assets_dir / "manifest.json").write_text(
+        '{"entrypoints": {"main": {"js": ["main.js"]}}}'
+    )
+
+    processor = UIManifestProcessor(str(tmp_path))
+
+    with caplog.at_level(logging.DEBUG, logger="superset.extensions"):
+        processor.parse_manifest_json()
+
+    assert processor.manifest == {"main": {"js": ["main.js"]}}
+    assert caplog.records == []
 
 
 def test_spa_template_includes_css_bundles():
