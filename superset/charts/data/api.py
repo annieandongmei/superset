@@ -213,34 +213,13 @@ class ChartDataRestApi(ChartRestApi):
         # when used in get_sqla_query which constructs the final query.
         g.form_data = json_body
 
-        try:
-            query_context = self._create_query_context_from_form(json_body)
-            command = ChartDataCommand(query_context)
-            command.validate()
-        except DatasourceNotFound:
-            return self.response_404()
-        except SupersetSecurityException:
-            return self.response_403()
-        except QueryObjectValidationError as error:
-            return self.response_400(message=error.message)
-        except ValidationError as error:
-            return self.response_400(
-                message=_(
-                    "Request is incorrect: %(error)s", error=error.normalized_messages()
-                )
-            )
+        result = self._create_and_validate_command(json_body)
+        if isinstance(result, Response):
+            return result
+        query_context, command = result
 
         # TODO: support CSV, SQL query and other non-JSON types
-        # Don't use async queries when cache is disabled (cache_timeout=-1)
-        # as async queries depend on caching to retrieve results
-        cache_timeout = query_context.get_cache_timeout()
-        use_async = (
-            is_feature_enabled("GLOBAL_ASYNC_QUERIES")
-            and query_context.result_format == ChartDataResultFormat.JSON
-            and query_context.result_type == ChartDataResultType.FULL
-            and cache_timeout != CACHE_DISABLED_TIMEOUT
-        )
-        if use_async:
+        if self._should_run_async(query_context):
             return self._run_async(json_body, command, add_extra_log_payload)
 
         try:
@@ -317,34 +296,13 @@ class ChartDataRestApi(ChartRestApi):
         if json_body is None:
             return self.response_400(message=_("Request is not JSON"))
 
-        try:
-            query_context = self._create_query_context_from_form(json_body)
-            command = ChartDataCommand(query_context)
-            command.validate()
-        except DatasourceNotFound:
-            return self.response_404()
-        except SupersetSecurityException:
-            return self.response_403()
-        except QueryObjectValidationError as error:
-            return self.response_400(message=error.message)
-        except ValidationError as error:
-            return self.response_400(
-                message=_(
-                    "Request is incorrect: %(error)s", error=error.normalized_messages()
-                )
-            )
+        result = self._create_and_validate_command(json_body)
+        if isinstance(result, Response):
+            return result
+        query_context, command = result
 
         # TODO: support CSV, SQL query and other non-JSON types
-        # Don't use async queries when cache is disabled (cache_timeout=-1)
-        # as async queries depend on caching to retrieve results
-        cache_timeout = query_context.get_cache_timeout()
-        use_async = (
-            is_feature_enabled("GLOBAL_ASYNC_QUERIES")
-            and query_context.result_format == ChartDataResultFormat.JSON
-            and query_context.result_type == ChartDataResultType.FULL
-            and cache_timeout != CACHE_DISABLED_TIMEOUT
-        )
-        if use_async:
+        if self._should_run_async(query_context):
             return self._run_async(json_body, command, add_extra_log_payload)
 
         form_data = json_body.get("form_data")
@@ -421,6 +379,47 @@ class ChartDataRestApi(ChartRestApi):
             )
 
         return self._get_data_response(command, True)
+
+    def _create_and_validate_command(
+        self, json_body: dict[str, Any]
+    ) -> "tuple[QueryContext, ChartDataCommand] | Response":
+        """Build and validate a ``ChartDataCommand`` from a request body.
+
+        Returns the query context and command on success, or an error
+        ``Response`` when the body is invalid or access is denied.
+        """
+        try:
+            query_context = self._create_query_context_from_form(json_body)
+            command = ChartDataCommand(query_context)
+            command.validate()
+        except DatasourceNotFound:
+            return self.response_404()
+        except SupersetSecurityException:
+            return self.response_403()
+        except QueryObjectValidationError as error:
+            return self.response_400(message=error.message)
+        except ValidationError as error:
+            return self.response_400(
+                message=_(
+                    "Request is incorrect: %(error)s",
+                    error=error.normalized_messages(),
+                )
+            )
+        return query_context, command
+
+    def _should_run_async(self, query_context: "QueryContext") -> bool:
+        """Whether the query should be executed as an async job.
+
+        Async queries are skipped when caching is disabled (cache_timeout=-1)
+        since they depend on the cache to retrieve results.
+        """
+        cache_timeout = query_context.get_cache_timeout()
+        return (
+            is_feature_enabled("GLOBAL_ASYNC_QUERIES")
+            and query_context.result_format == ChartDataResultFormat.JSON
+            and query_context.result_type == ChartDataResultType.FULL
+            and cache_timeout != CACHE_DISABLED_TIMEOUT
+        )
 
     def _run_async(
         self,
