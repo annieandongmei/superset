@@ -239,6 +239,52 @@ def get_columns_from_model(
 # - Search columns (which columns to search in)
 # - Extra columns (computed/relationship fields not on the model)
 
+
+def _audit_extra_columns() -> dict[str, ColumnMetadata]:
+    """Return the audit (creator/modifier) columns shared by every model's
+    ``*_EXTRA_COLUMNS`` mapping. A fresh dict is built per call so each mapping
+    owns its own ``ColumnMetadata`` instances.
+    """
+    return {
+        "changed_by": ColumnMetadata(
+            name="changed_by",
+            description="Last modifier username",
+            type="str",
+            is_default=False,
+        ),
+        "changed_by_name": ColumnMetadata(
+            name="changed_by_name",
+            description="Last modifier display name",
+            type="str",
+            is_default=False,
+        ),
+        "changed_on_humanized": ColumnMetadata(
+            name="changed_on_humanized",
+            description="Humanized modification time",
+            type="str",
+            is_default=True,
+        ),
+        "created_by": ColumnMetadata(
+            name="created_by",
+            description="Creator username",
+            type="str",
+            is_default=False,
+        ),
+        "created_by_name": ColumnMetadata(
+            name="created_by_name",
+            description="Creator display name",
+            type="str",
+            is_default=False,
+        ),
+        "created_on_humanized": ColumnMetadata(
+            name="created_on_humanized",
+            description="Humanized creation time",
+            type="str",
+            is_default=False,
+        ),
+    }
+
+
 # Chart configuration
 CHART_DEFAULT_COLUMNS = [
     "id",
@@ -282,42 +328,7 @@ CHART_EXTRA_COLUMNS: dict[str, ColumnMetadata] = {
         type="dict",
         is_default=False,
     ),
-    "changed_by": ColumnMetadata(
-        name="changed_by",
-        description="Last modifier username",
-        type="str",
-        is_default=False,
-    ),
-    "changed_by_name": ColumnMetadata(
-        name="changed_by_name",
-        description="Last modifier display name",
-        type="str",
-        is_default=False,
-    ),
-    "changed_on_humanized": ColumnMetadata(
-        name="changed_on_humanized",
-        description="Humanized modification time",
-        type="str",
-        is_default=True,
-    ),
-    "created_by": ColumnMetadata(
-        name="created_by",
-        description="Creator username",
-        type="str",
-        is_default=False,
-    ),
-    "created_by_name": ColumnMetadata(
-        name="created_by_name",
-        description="Creator display name",
-        type="str",
-        is_default=False,
-    ),
-    "created_on_humanized": ColumnMetadata(
-        name="created_on_humanized",
-        description="Humanized creation time",
-        type="str",
-        is_default=False,
-    ),
+    **_audit_extra_columns(),
     "certified_by": ColumnMetadata(
         name="certified_by",
         description="Name of the person who certified this chart",
@@ -364,42 +375,7 @@ DATASET_EXTRA_COLUMNS: dict[str, ColumnMetadata] = {
         type="str",
         is_default=False,
     ),
-    "changed_by": ColumnMetadata(
-        name="changed_by",
-        description="Last modifier username",
-        type="str",
-        is_default=False,
-    ),
-    "changed_by_name": ColumnMetadata(
-        name="changed_by_name",
-        description="Last modifier display name",
-        type="str",
-        is_default=False,
-    ),
-    "changed_on_humanized": ColumnMetadata(
-        name="changed_on_humanized",
-        description="Humanized modification time",
-        type="str",
-        is_default=True,
-    ),
-    "created_by": ColumnMetadata(
-        name="created_by",
-        description="Creator username",
-        type="str",
-        is_default=False,
-    ),
-    "created_by_name": ColumnMetadata(
-        name="created_by_name",
-        description="Creator display name",
-        type="str",
-        is_default=False,
-    ),
-    "created_on_humanized": ColumnMetadata(
-        name="created_on_humanized",
-        description="Humanized creation time",
-        type="str",
-        is_default=False,
-    ),
+    **_audit_extra_columns(),
     "certified_by": ColumnMetadata(
         name="certified_by",
         description="Name of the person who certified this dataset",
@@ -457,42 +433,7 @@ DASHBOARD_EXTRA_COLUMNS: dict[str, ColumnMetadata] = {
     "url": ColumnMetadata(
         name="url", description="Dashboard URL", type="str", is_default=True
     ),
-    "changed_by": ColumnMetadata(
-        name="changed_by",
-        description="Last modifier username",
-        type="str",
-        is_default=False,
-    ),
-    "changed_by_name": ColumnMetadata(
-        name="changed_by_name",
-        description="Last modifier display name",
-        type="str",
-        is_default=False,
-    ),
-    "changed_on_humanized": ColumnMetadata(
-        name="changed_on_humanized",
-        description="Humanized modification time",
-        type="str",
-        is_default=True,
-    ),
-    "created_by": ColumnMetadata(
-        name="created_by",
-        description="Creator username",
-        type="str",
-        is_default=False,
-    ),
-    "created_by_name": ColumnMetadata(
-        name="created_by_name",
-        description="Creator display name",
-        type="str",
-        is_default=False,
-    ),
-    "created_on_humanized": ColumnMetadata(
-        name="created_on_humanized",
-        description="Humanized creation time",
-        type="str",
-        is_default=False,
-    ),
+    **_audit_extra_columns(),
     "tags": ColumnMetadata(
         name="tags", description="Dashboard tags", type="list", is_default=False
     ),
@@ -534,42 +475,7 @@ DATABASE_EXTRA_COLUMNS: dict[str, ColumnMetadata] = {
         type="str",
         is_default=True,
     ),
-    "changed_by": ColumnMetadata(
-        name="changed_by",
-        description="Last modifier username",
-        type="str",
-        is_default=False,
-    ),
-    "changed_by_name": ColumnMetadata(
-        name="changed_by_name",
-        description="Last modifier display name",
-        type="str",
-        is_default=False,
-    ),
-    "changed_on_humanized": ColumnMetadata(
-        name="changed_on_humanized",
-        description="Humanized modification time",
-        type="str",
-        is_default=True,
-    ),
-    "created_by": ColumnMetadata(
-        name="created_by",
-        description="Creator username",
-        type="str",
-        is_default=False,
-    ),
-    "created_by_name": ColumnMetadata(
-        name="created_by_name",
-        description="Creator display name",
-        type="str",
-        is_default=False,
-    ),
-    "created_on_humanized": ColumnMetadata(
-        name="created_on_humanized",
-        description="Humanized creation time",
-        type="str",
-        is_default=False,
-    ),
+    **_audit_extra_columns(),
 }
 
 
