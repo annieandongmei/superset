@@ -25,19 +25,20 @@ import logging
 from fastmcp import Context
 from superset_core.mcp.decorators import tool, ToolAnnotations
 
-from superset.extensions import event_logger
-from superset.mcp_service.privacy import (
-    DATA_MODEL_METADATA_ERROR_TYPE,
-    requires_data_model_metadata_access,
-    user_can_view_data_model_metadata,
-)
+from superset.mcp_service.privacy import requires_data_model_metadata_access
 from superset.mcp_service.semantic_layer.schemas import (
     CompatibleMetricsResponse,
     GetCompatibleMetricsRequest,
     MetricInfo,
     SemanticLayerError,
 )
-from superset.mcp_service.utils.query_utils import validate_names
+from superset.mcp_service.semantic_layer.tool._common import (
+    check_metadata_permission,
+    load_builtin_dataset,
+    load_external_view,
+    validate_builtin_selection,
+    validate_selection_target,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -92,65 +93,30 @@ async def get_compatible_metrics(
         )
     )
 
-    if not user_can_view_data_model_metadata():
-        return SemanticLayerError.create(
-            error="You don't have permission to access dataset details for your role.",
-            error_type=DATA_MODEL_METADATA_ERROR_TYPE,
-        )
+    if permission_error := check_metadata_permission():
+        return permission_error
 
-    if request.dataset_id is None and request.view_id is None:
-        return SemanticLayerError.create(
-            error="Provide either dataset_id (built-in) or view_id (external).",
-            error_type="ValidationError",
-        )
-    if request.dataset_id is not None and request.view_id is not None:
-        return SemanticLayerError.create(
-            error="Provide only one of dataset_id or view_id, not both.",
-            error_type="ValidationError",
-        )
+    if target_error := validate_selection_target(request.dataset_id, request.view_id):
+        return target_error
 
     try:
         # ------------------------------------------------------------------
         # Built-in dataset path
         # ------------------------------------------------------------------
         if request.dataset_id is not None:
-            from sqlalchemy.orm import subqueryload
+            dataset = load_builtin_dataset(
+                request.dataset_id,
+                action="mcp.get_compatible_metrics.builtin",
+            )
+            if isinstance(dataset, SemanticLayerError):
+                return dataset
 
-            from superset.connectors.sqla.models import SqlaTable
-            from superset.daos.dataset import DatasetDAO
-
-            with event_logger.log_context(action="mcp.get_compatible_metrics.builtin"):
-                dataset: SqlaTable | None = DatasetDAO.find_by_id(
-                    request.dataset_id,
-                    query_options=[
-                        subqueryload(SqlaTable.columns),
-                        subqueryload(SqlaTable.metrics),
-                    ],
-                )
-
-            if dataset is None:
-                return SemanticLayerError.create(
-                    error=f"No dataset found with id: {request.dataset_id}.",
-                    error_type="NotFound",
-                )
-
-            valid_metrics = {m.metric_name for m in dataset.metrics}
-            valid_columns = {c.column_name for c in dataset.columns}
-            validation_errors = validate_names(
+            if validation_error := validate_builtin_selection(
+                dataset,
                 request.selected_metrics,
-                valid_metrics,
-                "metric",
-                list_valid_on_miss=True,
-                full_list_hint="call list_metrics for the full list",
-            )
-            validation_errors.extend(
-                validate_names(request.selected_dimensions, valid_columns, "dimension")
-            )
-            if validation_errors:
-                return SemanticLayerError.create(
-                    error="; ".join(validation_errors),
-                    error_type="ValidationError",
-                )
+                request.selected_dimensions,
+            ):
+                return validation_error
 
             # All metrics on a SQL dataset are always mutually compatible;
             # exclude ones already selected so clients don't get duplicate
@@ -181,27 +147,15 @@ async def get_compatible_metrics(
         # ------------------------------------------------------------------
         # External semantic view path
         # ------------------------------------------------------------------
-        from superset.daos.semantic_layer import SemanticViewDAO
-        from superset.exceptions import SupersetSecurityException
-        from superset.semantic_layers.models import MetricMetadata, SemanticView
+        from superset.semantic_layers.models import MetricMetadata
 
         view_id: int = request.view_id  # type: ignore[assignment]
-        with event_logger.log_context(action="mcp.get_compatible_metrics.external"):
-            view: SemanticView | None = SemanticViewDAO.find_by_id(view_id)
-
-        if view is None:
-            return SemanticLayerError.create(
-                error=f"No semantic view found with id: {view_id}.",
-                error_type="NotFound",
-            )
-
-        try:
-            view.raise_for_access()
-        except SupersetSecurityException as ex:
-            return SemanticLayerError.create(
-                error=str(ex.error.message),
-                error_type="AccessDenied",
-            )
+        view = load_external_view(
+            view_id,
+            action="mcp.get_compatible_metrics.external",
+        )
+        if isinstance(view, SemanticLayerError):
+            return view
 
         compatible_names: list[str] = view.get_compatible_metrics(
             request.selected_metrics,
