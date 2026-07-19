@@ -22,14 +22,23 @@ from typing import Any
 from urllib import parse
 
 from flask_babel import gettext as __
-from sqlalchemy import Float, Integer, Numeric, text, types
+from sqlalchemy import Numeric, text, types
 from sqlalchemy.engine.reflection import Inspector
 from sqlalchemy.engine.url import URL
-from sqlalchemy.sql.type_api import TypeEngine
 
 from superset import is_feature_enabled
 from superset.db_engine_specs.base import DatabaseCategory
 from superset.db_engine_specs.mysql import MySQLEngineSpec
+from superset.db_engine_specs.starrocks_doris_types import (  # noqa: F401
+    ARRAY,
+    BITMAP,
+    DOUBLE,
+    HLL,
+    LARGEINT,
+    MAP,
+    STRUCT,
+    TINYINT,
+)
 from superset.errors import SupersetErrorType
 from superset.extensions import security_manager
 from superset.models.core import Database
@@ -46,52 +55,8 @@ CONNECTION_UNKNOWN_DATABASE_REGEX = re.compile("Unknown database '(?P<database>.
 logger = logging.getLogger(__name__)
 
 
-class TINYINT(Integer):
-    __visit_name__ = "TINYINT"
-
-
-class LARGEINT(Integer):
-    __visit_name__ = "LARGEINT"
-
-
-class DOUBLE(Float):
-    __visit_name__ = "DOUBLE"
-
-
-class HLL(Numeric):
-    __visit_name__ = "HLL"
-
-
-class BITMAP(Numeric):
-    __visit_name__ = "BITMAP"
-
-
 class PERCENTILE(Numeric):
     __visit_name__ = "PERCENTILE"
-
-
-class ARRAY(TypeEngine):
-    __visit_name__ = "ARRAY"
-
-    @property
-    def python_type(self) -> type[list[Any]] | None:
-        return list
-
-
-class MAP(TypeEngine):
-    __visit_name__ = "MAP"
-
-    @property
-    def python_type(self) -> type[dict[Any, Any]] | None:
-        return dict
-
-
-class STRUCT(TypeEngine):
-    __visit_name__ = "STRUCT"
-
-    @property
-    def python_type(self) -> type[Any] | None:
-        return None
 
 
 class StarRocksEngineSpec(MySQLEngineSpec):

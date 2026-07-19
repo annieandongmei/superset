@@ -21,13 +21,22 @@ from typing import Any, Optional
 from urllib import parse
 
 from flask_babel import gettext as __
-from sqlalchemy import Float, Integer, Numeric, String, TEXT, text, types
+from sqlalchemy import Numeric, String, TEXT, text, types
 from sqlalchemy.engine.reflection import Inspector
 from sqlalchemy.engine.url import URL
-from sqlalchemy.sql.type_api import TypeEngine
 
 from superset.db_engine_specs.base import DatabaseCategory
 from superset.db_engine_specs.mysql import MySQLEngineSpec
+from superset.db_engine_specs.starrocks_doris_types import (  # noqa: F401
+    ARRAY,
+    BITMAP,
+    DOUBLE,
+    HLL,
+    LARGEINT,
+    MAP,
+    STRUCT,
+    TINYINT,
+)
 from superset.errors import SupersetErrorType
 from superset.models.core import Database
 from superset.utils.core import GenericDataType
@@ -54,56 +63,12 @@ SYNTAX_ERROR_REGEX = re.compile(
 logger = logging.getLogger(__name__)
 
 
-class TINYINT(Integer):
-    __visit_name__ = "TINYINT"
-
-
-class LARGEINT(Integer):
-    __visit_name__ = "LARGEINT"
-
-
-class DOUBLE(Float):
-    __visit_name__ = "DOUBLE"
-
-
-class HLL(Numeric):
-    __visit_name__ = "HLL"
-
-
-class BITMAP(Numeric):
-    __visit_name__ = "BITMAP"
-
-
 class QuantileState(Numeric):
     __visit_name__ = "QUANTILE_STATE"
 
 
 class AggState(Numeric):
     __visit_name__ = "AGG_STATE"
-
-
-class ARRAY(TypeEngine):
-    __visit_name__ = "ARRAY"
-
-    @property
-    def python_type(self) -> Optional[type[list[Any]]]:
-        return list
-
-
-class MAP(TypeEngine):
-    __visit_name__ = "MAP"
-
-    @property
-    def python_type(self) -> Optional[type[dict[Any, Any]]]:
-        return dict
-
-
-class STRUCT(TypeEngine):
-    __visit_name__ = "STRUCT"
-
-    @property
-    def python_type(self) -> Optional[type[Any]]:
-        return None
 
 
 class DorisEngineSpec(MySQLEngineSpec):
