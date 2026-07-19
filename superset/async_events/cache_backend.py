@@ -23,45 +23,17 @@ from flask_caching.backends.rediscache import RedisCache, RedisSentinelCache
 from redis.sentinel import Sentinel
 
 
-class RedisCacheBackend(RedisCache):
+class RedisStreamCommandsMixin:
+    """Shared Redis command wrappers used by the async-event cache backends.
+
+    Both backends expose the same thin passthroughs to the underlying
+    ``redis.Redis`` client stored on ``self._cache``; this mixin keeps that
+    surface in one place.
+    """
+
     MAX_EVENT_COUNT = 100
 
-    def __init__(  # pylint: disable=too-many-arguments
-        self,
-        host: str,
-        port: int,
-        password: str | None = None,
-        db: int = 0,
-        default_timeout: int = 300,
-        key_prefix: str | None = None,
-        ssl: bool = False,
-        ssl_certfile: str | None = None,
-        ssl_keyfile: str | None = None,
-        ssl_cert_reqs: str = "required",
-        ssl_ca_certs: str | None = None,
-        **kwargs: Any,
-    ) -> None:
-        super().__init__(
-            host=host,
-            port=port,
-            password=password,
-            db=db,
-            default_timeout=default_timeout,
-            key_prefix=key_prefix,
-            **kwargs,
-        )
-        self._cache = redis.Redis(
-            host=host,
-            port=port,
-            password=password,
-            db=db,
-            ssl=ssl,
-            ssl_certfile=ssl_certfile,
-            ssl_keyfile=ssl_keyfile,
-            ssl_cert_reqs=ssl_cert_reqs,
-            ssl_ca_certs=ssl_ca_certs,
-            **kwargs,
-        )
+    _cache: redis.Redis[Any]
 
     def set(
         self,
@@ -131,6 +103,45 @@ class RedisCacheBackend(RedisCache):
         count = count or self.MAX_EVENT_COUNT
         return self._cache.xrange(stream_name, start, end, count)
 
+
+class RedisCacheBackend(RedisStreamCommandsMixin, RedisCache):
+    def __init__(  # pylint: disable=too-many-arguments
+        self,
+        host: str,
+        port: int,
+        password: str | None = None,
+        db: int = 0,
+        default_timeout: int = 300,
+        key_prefix: str | None = None,
+        ssl: bool = False,
+        ssl_certfile: str | None = None,
+        ssl_keyfile: str | None = None,
+        ssl_cert_reqs: str = "required",
+        ssl_ca_certs: str | None = None,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(
+            host=host,
+            port=port,
+            password=password,
+            db=db,
+            default_timeout=default_timeout,
+            key_prefix=key_prefix,
+            **kwargs,
+        )
+        self._cache = redis.Redis(
+            host=host,
+            port=port,
+            password=password,
+            db=db,
+            ssl=ssl,
+            ssl_certfile=ssl_certfile,
+            ssl_keyfile=ssl_keyfile,
+            ssl_cert_reqs=ssl_cert_reqs,
+            ssl_ca_certs=ssl_ca_certs,
+            **kwargs,
+        )
+
     @classmethod
     def from_config(cls, config: dict[str, Any]) -> RedisCacheBackend:
         kwargs = {
@@ -154,9 +165,7 @@ class RedisCacheBackend(RedisCache):
         return cls(**kwargs)
 
 
-class RedisSentinelCacheBackend(RedisSentinelCache):
-    MAX_EVENT_COUNT = 100
-
+class RedisSentinelCacheBackend(RedisStreamCommandsMixin, RedisSentinelCache):
     def __init__(  # pylint: disable=too-many-arguments
         self,
         sentinels: list[tuple[str, int]],
@@ -227,74 +236,6 @@ class RedisSentinelCacheBackend(RedisSentinelCache):
             key_prefix=key_prefix,
             **kwargs,
         )
-
-    def set(
-        self,
-        name: str,
-        value: Any,
-        ex: int | None = None,
-        px: int | None = None,
-        nx: bool = False,
-        xx: bool = False,
-    ) -> bool | None:
-        """
-        Set the value at key ``name``.
-
-        :param name: Key name
-        :param value: Value to set
-        :param ex: Expire time in seconds
-        :param px: Expire time in milliseconds
-        :param nx: If True, set only if key does not exist
-        :param xx: If True, set only if key already exists
-        :returns: True if set successfully, None if nx/xx condition not met
-        """
-        return self._cache.set(name, value, ex=ex, px=px, nx=nx, xx=xx)
-
-    def delete(self, *names: str) -> int:
-        """
-        Delete one or more keys.
-
-        :param names: Key names to delete
-        :returns: Number of keys deleted
-        """
-        return self._cache.delete(*names)
-
-    def publish(self, channel: str, message: str) -> int:
-        """
-        Publish a message to a Redis pub/sub channel.
-
-        :param channel: The channel name to publish to
-        :param message: The message to publish
-        :returns: Number of subscribers that received the message
-        """
-        return self._cache.publish(channel, message)
-
-    def pubsub(self) -> redis.client.PubSub:
-        """
-        Create a pub/sub subscription object.
-
-        :returns: PubSub object for subscribing to channels
-        """
-        return self._cache.pubsub()
-
-    def xadd(
-        self,
-        stream_name: str,
-        event_data: dict[str, Any],
-        event_id: str = "*",
-        maxlen: int | None = None,
-    ) -> str:
-        return self._cache.xadd(stream_name, event_data, event_id, maxlen)
-
-    def xrange(
-        self,
-        stream_name: str,
-        start: str = "-",
-        end: str = "+",
-        count: int | None = None,
-    ) -> list[Any]:
-        count = count or self.MAX_EVENT_COUNT
-        return self._cache.xrange(stream_name, start, end, count)
 
     @classmethod
     def from_config(cls, config: dict[str, Any]) -> RedisSentinelCacheBackend:
