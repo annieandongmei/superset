@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from typing import Any, Optional, Union
+from typing import Any, Callable, Optional, Union
 
 from superset import security_manager
 from superset.daos.chart import ChartDAO
@@ -52,6 +52,43 @@ def to_object_model(
 
         return DatasetDAO.find_by_id(object_id, skip_base_filter=skip_base_filter)
     return None
+
+
+def validate_object_access(
+    object_type: ObjectType,
+    object_id: int,
+    exceptions: list[Any],
+    error_factory: Callable[[str], Exception],
+) -> None:
+    """Append an access error to ``exceptions`` when the current user cannot
+    access the tagged object.
+
+    ``error_factory`` builds the command-specific failure exception from a
+    message, so create and delete commands share the same access-check logic
+    while reporting their own error types. Objects that cannot be resolved are
+    treated as stale references and skipped.
+    """
+    # Skip base filter so we can distinguish "not found" from "no access"
+    target_object = to_object_model(object_type, object_id, skip_base_filter=True)
+    if not target_object:
+        # Allow operation on stale references; no object to authorize against
+        return
+
+    try:
+        if object_type == ObjectType.dashboard:
+            security_manager.raise_for_access(dashboard=target_object)
+        elif object_type == ObjectType.chart:
+            security_manager.raise_for_access(chart=target_object)
+        elif object_type == ObjectType.query:
+            security_manager.raise_for_access(query=target_object)
+        elif object_type == ObjectType.dataset:
+            security_manager.raise_for_access(datasource=target_object)
+        else:
+            exceptions.append(
+                error_factory(f"Access validation not supported for {object_type}")
+            )
+    except SupersetSecurityException:
+        exceptions.append(error_factory(f"Access denied for {object_type} {object_id}"))
 
 
 def current_user_can_modify_object(model: Any) -> bool:
